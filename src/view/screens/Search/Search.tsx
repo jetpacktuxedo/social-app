@@ -847,10 +847,9 @@ export function SearchScreen(
             )}
           </LayoutAnimationConfig>
           <Animated.View
-            style={[a.px_md, a.pt_sm, a.pb_sm, a.overflow_hidden]}
+            style={[a.px_md, a.pt_sm, a.pb_sm, a.overflow_hidden, a.gap_sm]}
             layout={native(LinearTransition)}>
-            <Animated.View
-              style={[a.gap_sm, a.relative, animatedInputContainerStyle]}>
+            <Animated.View style={[a.relative, animatedInputContainerStyle]}>
               <View style={[a.w_full]}>
                 <SearchInput
                   ref={textInput}
@@ -886,21 +885,21 @@ export function SearchScreen(
                   </ButtonText>
                 </Button>
               </Animated.View>
-              {showFilters && gtMobile && (
-                <View
-                  style={[
-                    a.flex_row,
-                    a.align_center,
-                    a.justify_between,
-                    a.gap_sm,
-                  ]}>
-                  <SearchLanguageDropdown
-                    value={params.lang}
-                    onChange={params.setLang}
-                  />
-                </View>
-              )}
             </Animated.View>
+            {showFilters && gtMobile && (
+              <View
+                style={[
+                  a.flex_row,
+                  a.align_center,
+                  a.justify_between,
+                  a.gap_sm,
+                ]}>
+                <SearchLanguageDropdown
+                  value={params.lang}
+                  onChange={params.setLang}
+                />
+              </View>
+            )}
           </Animated.View>
         </Layout.Center>
       </View>
