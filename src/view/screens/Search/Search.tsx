@@ -26,7 +26,7 @@ import {
 } from '@fortawesome/react-native-fontawesome'
 import {msg, Trans} from '@lingui/macro'
 import {useLingui} from '@lingui/react'
-import {useFocusEffect, useNavigation} from '@react-navigation/native'
+import {useFocusEffect, useNavigation, useRoute} from '@react-navigation/native'
 
 import {APP_LANGUAGES, LANGUAGES} from '#/lib/../locale/languages'
 import {createHitslop, HITSLOP_20} from '#/lib/constants'
@@ -64,7 +64,7 @@ import {List} from '#/view/com/util/List'
 import {Text} from '#/view/com/util/text/Text'
 import {Explore} from '#/view/screens/Search/Explore'
 import {SearchLinkCard, SearchProfileCard} from '#/view/shell/desktop/Search'
-import {makeSearchQuery, parseSearchQuery} from '#/screens/Search/utils'
+import {makeSearchQuery, Params, parseSearchQuery} from '#/screens/Search/utils'
 import {
   atoms as a,
   native,
@@ -423,7 +423,13 @@ function SearchLanguageDropdown({
   )
 }
 
-function useQueryManager({initialQuery}: {initialQuery: string}) {
+function useQueryManager({
+  initialQuery,
+  fixedParams,
+}: {
+  initialQuery: string
+  fixedParams?: Params
+}) {
   const {query, params: initialParams} = React.useMemo(() => {
     return parseSearchQuery(initialQuery || '')
   }, [initialQuery])
@@ -442,8 +448,9 @@ function useQueryManager({initialQuery}: {initialQuery: string}) {
       ...initialParams,
       // managed stuff
       lang,
+      ...fixedParams,
     }),
-    [lang, initialParams],
+    [lang, initialParams, fixedParams],
   )
   const handlers = React.useMemo(
     () => ({
@@ -592,16 +599,34 @@ SearchScreenInner = React.memo(SearchScreenInner)
 export function SearchScreen(
   props: NativeStackScreenProps<SearchTabNavigatorParams, 'Search'>,
 ) {
+  const queryParam = props.route?.params?.q ?? ''
+
+  return <SearchScreenShell queryParam={queryParam} testID="searchScreen" />
+}
+
+export function SearchScreenShell({
+  queryParam,
+  testID,
+  fixedParams,
+  navButton = 'menu',
+  inputPlaceholder,
+}: {
+  queryParam: string
+  testID: string
+  fixedParams?: Params
+  navButton?: 'back' | 'menu'
+  inputPlaceholder?: string
+}) {
   const t = useTheme()
   const {gtMobile} = useBreakpoints()
   const navigation = useNavigation<NavigationProp>()
+  const route = useRoute()
   const textInput = React.useRef<TextInput>(null)
   const {_} = useLingui()
   const setMinimalShellMode = useSetMinimalShellMode()
   const {currentAccount} = useSession()
 
   // Query terms
-  const queryParam = props.route?.params?.q ?? ''
   const [searchText, setSearchText] = React.useState<string>(queryParam)
   const {data: autocompleteData, isFetching: isAutocompleteFetching} =
     useActorAutocompleteQuery(searchText, true)
@@ -659,6 +684,7 @@ export function SearchScreen(
 
   const {params, query, queryWithParams} = useQueryManager({
     initialQuery: queryParam,
+    fixedParams,
   })
   const showFilters = Boolean(queryWithParams && !showAutocomplete)
 
@@ -699,13 +725,14 @@ export function SearchScreen(
       updateSearchHistory(item)
 
       if (isWeb) {
-        navigation.push('Search', {q: item})
+        // @ts-expect-error route is not typesafe
+        navigation.push(route.name, {...route.params, q: item})
       } else {
         textInput.current?.blur()
         navigation.setParams({q: item})
       }
     },
-    [updateSearchHistory, navigation],
+    [updateSearchHistory, navigation, route],
   )
 
   const onPressCancelSearch = React.useCallback(() => {
@@ -754,13 +781,18 @@ export function SearchScreen(
   const onSoftReset = React.useCallback(() => {
     if (isWeb) {
       // Empty params resets the URL to be /search rather than /search?q=
-      navigation.replace('Search', {})
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const {q: _q, ...parameters} = (route.params ?? {}) as {
+        [key: string]: string
+      }
+      // @ts-expect-error route is not typesafe
+      navigation.replace(route.name, parameters)
     } else {
       setSearchText('')
       navigation.setParams({q: ''})
       textInput.current?.focus()
     }
-  }, [navigation])
+  }, [navigation, route])
 
   useFocusEffect(
     React.useCallback(() => {
@@ -802,7 +834,7 @@ export function SearchScreen(
   }))
 
   return (
-    <Layout.Screen testID="searchScreen">
+    <Layout.Screen testID={testID}>
       <View
         ref={headerRef}
         onLayout={evt => {
@@ -827,7 +859,11 @@ export function SearchScreen(
                 // if we add it only when the header is hidden
                 style={{marginBottom: tokens.space.sm * -1}}>
                 <Layout.Header.Outer noBottomBorder>
-                  <Layout.Header.MenuButton />
+                  {navButton === 'menu' ? (
+                    <Layout.Header.MenuButton />
+                  ) : (
+                    <Layout.Header.BackButton />
+                  )}
                   <Layout.Header.Content
                     align={showFilters ? 'left' : 'platform'}>
                     <Layout.Header.TitleText>
@@ -858,7 +894,10 @@ export function SearchScreen(
                   onChangeText={onChangeText}
                   onClearText={onPressClearQuery}
                   onSubmitEditing={onSubmit}
-                  placeholder={_(msg`Search for posts, users, or feeds`)}
+                  placeholder={
+                    inputPlaceholder ??
+                    _(msg`Search for posts, users, or feeds`)
+                  }
                   hitSlop={{...HITSLOP_20, top: 0}}
                 />
               </View>
@@ -906,7 +945,7 @@ export function SearchScreen(
 
       <View
         style={{
-          display: showAutocomplete ? 'flex' : 'none',
+          display: showAutocomplete && !fixedParams ? 'flex' : 'none',
           flex: 1,
         }}>
         {searchText.length > 0 ? (
